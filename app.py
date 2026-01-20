@@ -1,39 +1,35 @@
-import streamlit as st
 import torch
+import gradio as gr
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 
-st.set_page_config(page_title="Fake News Detection")
+# Load model and tokenizer from Hugging Face Model Hub
+MODEL_NAME = "Mangai2024/fake-news-distilbert"
 
-st.title("📰 Fake News Detection")
-st.write("Enter a news article to check whether it is Fake or Real.")
+model = DistilBertForSequenceClassification.from_pretrained(MODEL_NAME)
+tokenizer = DistilBertTokenizer.from_pretrained(MODEL_NAME)
 
-@st.cache_resource
-def load_model():
-    model = DistilBertForSequenceClassification.from_pretrained("fake_news_model")
-    tokenizer = DistilBertTokenizer.from_pretrained("fake_news_model")
-    return model, tokenizer
+def predict_news(text):
+    inputs = tokenizer(
+        text,
+        return_tensors="pt",
+        truncation=True,
+        padding=True,
+        max_length=512
+    )
 
-model, tokenizer = load_model()
+    with torch.no_grad():
+        outputs = model(**inputs)
 
-text = st.text_area("Enter news text")
+    prediction = torch.argmax(outputs.logits, dim=1).item()
 
-if st.button("Predict"):
-    if text.strip() == "":
-        st.warning("Please enter some text.")
-    else:
-        inputs = tokenizer(
-            text,
-            return_tensors="pt",
-            truncation=True,
-            padding=True,
-            max_length=512
-        )
-        with torch.no_grad():
-            outputs = model(**inputs)
+    return "Fake News ❌" if prediction == 0 else "Real News ✅"
 
-        prediction = torch.argmax(outputs.logits, dim=1).item()
+interface = gr.Interface(
+    fn=predict_news,
+    inputs=gr.Textbox(lines=6, placeholder="Enter news text here..."),
+    outputs="text",
+    title="Fake News Detection",
+    description="Enter a news article to check whether it is Fake or Real."
+)
 
-        if prediction == 0:
-            st.error("❌ Fake News")
-        else:
-            st.success("✅ Real News")
+interface.launch()
